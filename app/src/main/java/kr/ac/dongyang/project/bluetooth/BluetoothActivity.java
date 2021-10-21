@@ -8,6 +8,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.Handler;
+import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
@@ -19,7 +20,11 @@ import android.widget.Toast;
 import java.io.IOException;
 import java.util.Set;
 
+import kr.ac.dongyang.project.LoadingDialog;
+import kr.ac.dongyang.project.MainActivity2;
 import kr.ac.dongyang.project.R;
+import kr.ac.dongyang.project.SplashActivity;
+import kr.ac.dongyang.project.blackbox.BlackBoxActivity;
 import kr.ac.dongyang.project.service.bluetoothService;
 import kr.ac.dongyang.project.service.gyroService;
 
@@ -101,6 +106,8 @@ public class BluetoothActivity extends AppCompatActivity {
     private AdapterView.OnItemClickListener mDeviceClickListener = new AdapterView.OnItemClickListener() {
         @Override
         public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+            //로딩이미지 gif 형식
+
 
             if(!mBTAdapter.isEnabled()) {
                 Toast.makeText(getBaseContext(), "Bluetooth not on", Toast.LENGTH_SHORT).show();
@@ -120,14 +127,8 @@ public class BluetoothActivity extends AppCompatActivity {
 
             //연결됨
             if(device.equals("raspberry")){
-                Boolean conn = connectSocket(address);
-                if(conn) {
-                    Intent intent = new Intent(getApplicationContext(), bluetoothService.class);
-                    intent.putExtra("bluetooth", true);
+                connectSocket(address);
 
-                    startService(intent);
-                    finish();
-                }
             }
             // Spawn a new thread to avoid blocking the GUI one
 //            new Thread()
@@ -253,51 +254,74 @@ public class BluetoothActivity extends AppCompatActivity {
 
         //}
     };
-    private boolean connectSocket(String address){
-        if (address.equals("")){
-            //Toast.makeText(getApplicationContext(),"블루투스 장치를 확인하세요", Toast.LENGTH_LONG).show();
-        }
-        else{
-            // Spawn a new thread to avoid blocking the GUI one
-
-            android.bluetooth.BluetoothDevice btDevice = mBTAdapter.getRemoteDevice(address);
-            try {
-                raspberrySocket = btcl.createRaspberrySocket(btDevice);
-            } catch (IOException e) {//exception 발생 시
-                handler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        Toast.makeText(getBaseContext(), "Socket creation failed", Toast.LENGTH_SHORT).show();
-                    }
-                });
-
-            }
-            // Establish the Bluetooth socket connection.
-            try {
-                raspberrySocket.connect();
-            } catch (IOException e) {//exception 발생 시
-                try {
-                    raspberrySocket.close();
-                    btcl.closeRaspberrySocket();
-                    handler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            Toast.makeText(getBaseContext(), "라즈베리파이의 블루투스를 확인하세요", Toast.LENGTH_SHORT).show();
-                        }
-                    });
-                } catch (Exception e2) {
-                    //insert code to deal with this
-                    handler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            Toast.makeText(getBaseContext(), "Socket creation failed", Toast.LENGTH_SHORT).show();
-                        }
-                    });
+    private void connectSocket(String address) {
+        LoadingDialog loadingDialog = new LoadingDialog(BluetoothActivity.this);
+        new Thread() {
+            @Override
+            public void run() {
+                if (address.equals("")){
+                    //Toast.makeText(getApplicationContext(),"블루투스 장치를 확인하세요", Toast.LENGTH_LONG).show();
                 }
-                return false;
-            }
-        }
-        return true;
-    }
+                else{
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            loadingDialog.setCancelable(false);
+                            loadingDialog.show();
+                        }
+                    });
+                    // Spawn a new thread to avoid blocking the GUI one
 
+                    android.bluetooth.BluetoothDevice btDevice = mBTAdapter.getRemoteDevice(address);
+                    try {
+                        raspberrySocket = btcl.createRaspberrySocket(btDevice);
+                    } catch (IOException e) {//exception 발생 시
+                        handler.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                Toast.makeText(getBaseContext(), "Socket creation failed", Toast.LENGTH_SHORT).show();
+                            }
+                        });
+
+                    }
+                    // Establish the Bluetooth socket connection.
+                    try {
+                        raspberrySocket.connect();
+                        
+                        //성공시 서비스에 값 전달
+                        Intent intent = new Intent(getApplicationContext(), bluetoothService.class);
+                        intent.putExtra("bluetooth", true);
+                        startService(intent);
+
+                        //액티비티 종료
+                        finish();
+
+                    } catch (IOException e) {//exception 발생 시
+                        try {
+                            raspberrySocket.close();
+                            btcl.closeRaspberrySocket();
+                            handler.post(new Runnable() {
+                                @Override
+                                public void run() {
+                                    Toast.makeText(getBaseContext(), "라즈베리파이의 블루투스를 확인하세요", Toast.LENGTH_SHORT).show();
+                                }
+                            });
+                        } catch (Exception e2) {
+                            //insert code to deal with this
+                            handler.post(new Runnable() {
+                                @Override
+                                public void run() {
+                                    Toast.makeText(getBaseContext(), "Socket creation failed", Toast.LENGTH_SHORT).show();
+                                }
+                            });
+                        }
+                    }
+                    finally {
+                        loadingDialog.dismiss();
+
+                    }
+                }
+            }
+        }.start();
+    }
 }
