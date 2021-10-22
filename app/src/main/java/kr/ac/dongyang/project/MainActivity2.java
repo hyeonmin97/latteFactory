@@ -12,9 +12,12 @@ import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.ImageButton;
 import android.content.Context;
@@ -57,12 +60,19 @@ public class MainActivity2 extends AppCompatActivity {
     SharedPreferences setting;
     SharedPreferences.Editor editor;
 
+    Handler handler = new Handler(Looper.getMainLooper());
 
+
+    BluetoothController btcl;
+    BluetoothAdapter mBTAdapter;
+    private BluetoothSocket raspberrySocket = null;
+    bluetoothService.ConnectedThread thread;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
 
         setContentView(R.layout.activity_aftermain);
+
 
 
         //낙상감지 서비스 시작
@@ -96,14 +106,14 @@ public class MainActivity2 extends AppCompatActivity {
 
 
 
-        //블루투스 mac주소
-        SharedPreferences device =  getSharedPreferences("bluetooth", 0);
-        String address = device.getString("raspberry", "");
-        if(address.equals("")){
-            Toast.makeText(getApplicationContext(),"설정에서 라즈베리파이를 지정해주세요", Toast.LENGTH_LONG).show();
-            Intent intent = new Intent(this, BluetoothActivity.class);
-            startActivity(intent);
-        }
+//        //블루투스 mac주소
+//        SharedPreferences device =  getSharedPreferences("bluetooth", 0);
+//        String address = device.getString("raspberry", "");
+//        if(address.equals("")){
+//            Toast.makeText(getApplicationContext(),"설정에서 라즈베리파이를 지정해주세요", Toast.LENGTH_LONG).show();
+//            Intent intent = new Intent(this, BluetoothActivity.class);
+//            startActivity(intent);
+//        }
 
 
 
@@ -180,10 +190,109 @@ public class MainActivity2 extends AppCompatActivity {
         });
 
 
+        btcl = BluetoothController.getController();
+        mBTAdapter = btcl.getmBTAdapter();
+        //블루투스 mac주소
+        SharedPreferences device = getSharedPreferences("bluetooth", 0);
+        String address = device.getString("raspberry", "");
+        if(address.equals("")){
+            Toast.makeText(getApplicationContext(),"설정에서 라즈베리파이를 지정해주세요 sex", Toast.LENGTH_LONG).show();
+            Intent intent = new Intent(this, BluetoothActivity.class);
+            startActivity(intent);
+        }
+        else {
+            //블루투스 소켓 연결
+            connectSocket(address);
+        }
 
         super.onCreate(savedInstanceState);
     }
+    private void connectSocket(String address){
+        LoadingDialog l = new LoadingDialog(MainActivity2.this);
+        new Thread(){
+            @Override
+            public void run() {
+                handler.post(new Runnable() {
+                    @Override
+                    public void run() {
 
+
+                        l.show();
+
+                    }
+                });
+
+                if (address.equals("")){
+                    //Toast.makeText(getApplicationContext(),"블루투스 장치를 확인하세요", Toast.LENGTH_LONG).show();
+                }
+                else{
+                    // Spawn a new thread to avoid blocking the GUI one
+
+                    android.bluetooth.BluetoothDevice btDevice = mBTAdapter.getRemoteDevice(address);
+                    try {
+                        raspberrySocket = btcl.createRaspberrySocket(btDevice);
+                    } catch (IOException e) {//exception 발생 시
+                        handler.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                Toast.makeText(getBaseContext(), "Socket creation failed", Toast.LENGTH_SHORT).show();
+                            }
+                        });
+
+                    }
+                    // Establish the Bluetooth socket connection.
+                    try {
+                        raspberrySocket.connect();
+                        //성공시 서비스에 값 전달
+                        Intent intent = new Intent(getApplicationContext(), bluetoothService.class);
+                        intent.putExtra("bluetooth", true);
+                        startService(intent);
+
+                    } catch (IOException e) {//exception 발생 시
+                        handler.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                Toast.makeText(getBaseContext(), "연결 에러 - 라즈베리 파이의 블루투스를 확인해주세요", Toast.LENGTH_SHORT).show();
+                            }
+
+                        });
+
+//                        Intent bt = new Intent(getApplicationContext(), BluetoothActivity.class);
+//                        bt.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK |
+//                                Intent.FLAG_ACTIVITY_SINGLE_TOP |
+//                                Intent.FLAG_ACTIVITY_CLEAR_TOP);
+//                        startActivity(bt);
+//                        Log.d(TAG, "go BluetoothActivity");
+
+                        try {
+                            raspberrySocket.close();
+//                    handler.post(new Runnable() {
+//                        @Override
+//                        public void run() {
+//                            Toast.makeText(getBaseContext(), "라즈베리파이의 블루투스 연결을 확인하세요", Toast.LENGTH_SHORT).show();
+//                        }
+//                    });
+                        } catch (IOException e2) {
+                            //insert code to deal with this
+//                    handler.post(new Runnable() {
+//                        @Override
+//                        public void run() {
+//                            Toast.makeText(getBaseContext(), "Socket creation failed", Toast.LENGTH_SHORT).show();
+//                        }
+//                    });
+                        }finally {
+                            Log.d("sex","threadend");
+                        }
+                    }
+                    finally {
+                        l.dismiss();
+                    }
+                }
+                super.run();
+            }
+        }.start();
+
+    }
     @Override
     protected void onStart() {
         super.onStart();
@@ -202,6 +311,7 @@ public class MainActivity2 extends AppCompatActivity {
         startActivity(intentLogout);
         finish();
     }
+
     // 마지막으로 뒤로 가기 버튼을 눌렀던 시간 저장
     private long backKeyPressedTime = 0;
     // 첫 번째 뒤로 가기 버튼을 누를 때 표시

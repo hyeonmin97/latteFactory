@@ -24,7 +24,10 @@ import java.util.List;
 import java.util.Locale;
 
 import kr.ac.dongyang.project.GpsTracker;
+import kr.ac.dongyang.project.LoadingDialog;
+import kr.ac.dongyang.project.MainActivity;
 import kr.ac.dongyang.project.MainActivity2;
+import kr.ac.dongyang.project.R;
 import kr.ac.dongyang.project.RetrofitInit;
 import kr.ac.dongyang.project.SplashActivity;
 import kr.ac.dongyang.project.bluetooth.BluetoothActivity;
@@ -43,8 +46,7 @@ public class bluetoothService extends Service {
     BluetoothController btcl;
     BluetoothAdapter mBTAdapter;
     private BluetoothSocket raspberrySocket = null;
-    Handler handler = new Handler();
-    Boolean sockConnect = false;
+    Handler handler;
     ConnectedThread thread;
 
     private static final String BLUETOOTH_END = "bted";
@@ -59,84 +61,9 @@ public class bluetoothService extends Service {
 
         btcl = BluetoothController.getController();
         mBTAdapter = btcl.getmBTAdapter();
+        handler= new Handler();
 
-        //블루투스 mac주소
-        SharedPreferences device = getSharedPreferences("bluetooth", 0);
-        String address = device.getString("raspberry", "");
-
-        //블루투스 소켓 연결
-
-        sockConnect = connectSocket(address);
-        if (sockConnect) {
-            thread = new ConnectedThread(btcl.getRaspberrySocket());
-            thread.start();
-            thread.write("connect".getBytes());
-            Log.d(TAG, "sockConnect while");
-        }
-        else {
-            handler.post(new Runnable() {
-                @Override
-                public void run() {
-                    Toast.makeText(getBaseContext(), "먼저 라즈베리파이의 블루투스와 연결해주세요", Toast.LENGTH_SHORT).show();
-                }
-                
-            });
-//            Intent bt = new Intent(getApplicationContext(), BluetoothActivity.class);
-//            bt.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK |
-//                    Intent.FLAG_ACTIVITY_SINGLE_TOP |
-//                    Intent.FLAG_ACTIVITY_CLEAR_TOP);
-//            startActivity(bt);
-//            Log.d(TAG, "go BluetoothActivity");
-        }
         super.onCreate();
-    }
-
-    private boolean connectSocket(String address){
-        if (address.equals("")){
-            //Toast.makeText(getApplicationContext(),"블루투스 장치를 확인하세요", Toast.LENGTH_LONG).show();
-        }
-        else{
-            // Spawn a new thread to avoid blocking the GUI one
-
-            android.bluetooth.BluetoothDevice btDevice = mBTAdapter.getRemoteDevice(address);
-            try {
-                raspberrySocket = btcl.createRaspberrySocket(btDevice);
-            } catch (IOException e) {//exception 발생 시
-                handler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        Toast.makeText(getBaseContext(), "Socket creation failed", Toast.LENGTH_SHORT).show();
-                    }
-                });
-
-            }
-            // Establish the Bluetooth socket connection.
-            try {
-                raspberrySocket.connect();
-            } catch (IOException e) {//exception 발생 시
-                try {
-                    raspberrySocket.close();
-//                    handler.post(new Runnable() {
-//                        @Override
-//                        public void run() {
-//                            Toast.makeText(getBaseContext(), "라즈베리파이의 블루투스 연결을 확인하세요", Toast.LENGTH_SHORT).show();
-//                        }
-//                    });
-                } catch (IOException e2) {
-                    //insert code to deal with this
-//                    handler.post(new Runnable() {
-//                        @Override
-//                        public void run() {
-//                            Toast.makeText(getBaseContext(), "Socket creation failed", Toast.LENGTH_SHORT).show();
-//                        }
-//                    });
-                }finally {
-                }
-
-                return false;
-            }
-        }
-        return true;
     }
 
     @Override
@@ -148,18 +75,14 @@ public class bluetoothService extends Service {
         try {
             //블투액티비티에서 호출한 경우
             Boolean createSocket = intent.getBooleanExtra("bluetooth",false);
-            if(createSocket){
-                //블루투스 mac주소
-                SharedPreferences device = getSharedPreferences("bluetooth", 0);
-                String address = device.getString("raspberry", "");
+            if(createSocket){//bluetooth느ㄴ 연결 성공시 넘어옴(bluetoothService, mainactivity2)
 
-                //블루투스 소켓 연결
-                if (createSocket) {
-                    thread = new ConnectedThread(btcl.getRaspberrySocket());
-                    thread.start();
-                    thread.write("connect".getBytes());
-                    Log.d(TAG, "sockConnect while");
-                }
+            //블루투스 소켓 연결
+                thread = new ConnectedThread(btcl.getRaspberrySocket());
+                thread.start();
+                thread.write("connect".getBytes());
+                Log.d(TAG, "sockConnect while");
+
             }
         } catch (Exception e){
 
@@ -311,7 +234,7 @@ public class bluetoothService extends Service {
 
     }
 
-    class ConnectedThread extends Thread {
+    public class ConnectedThread extends Thread {
         private static final String TAG = "BluetoothHandler";
 
         private InputStream mInputStream;
