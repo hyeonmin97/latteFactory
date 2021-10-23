@@ -128,7 +128,8 @@ public class BluetoothActivity extends AppCompatActivity {
             //연결됨
             if(device.equals("raspberry")){
                 connectSocket(address);
-
+            }else if(device.equals("latte")){
+                finish();
             }
             // Spawn a new thread to avoid blocking the GUI one
 //            new Thread()
