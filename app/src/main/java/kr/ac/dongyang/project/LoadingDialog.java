@@ -28,7 +28,7 @@ public class LoadingDialog extends Dialog {
 
         ImageView gifImageView = findViewById(R.id.loading_image);
         Glide.with(getContext()).asGif()
-                .load(R.drawable.animation)
+                .load(R.drawable.animation2)
                 .into(gifImageView);
 
 
