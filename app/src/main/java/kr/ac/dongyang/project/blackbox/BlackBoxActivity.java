@@ -139,7 +139,7 @@ public class BlackBoxActivity extends AppCompatActivity {
         SharedPreferences device =  getSharedPreferences("bluetooth", 0);
         String address = device.getString("latte", "");
         if(address.equals("")){
-            Toast.makeText(getApplicationContext(),"설정에서 라떼판다를 지정해주세요", Toast.LENGTH_LONG).show();
+            Toast.makeText(getApplicationContext(),"설정에서 라떼판다를 지정해주세요", Toast.LENGTH_SHORT).show();
             finish();
         }else{
             //블루투스 소켓 연결
@@ -354,7 +354,7 @@ public class BlackBoxActivity extends AppCompatActivity {
                 handler.post(new Runnable() {
                     @Override
                     public void run() {
-                        Toast.makeText(getApplicationContext(),"end", Toast.LENGTH_LONG).show();
+                        Toast.makeText(getApplicationContext(),"end", Toast.LENGTH_SHORT).show();
                     }
                 });
                 Log.d(TAG, ""+bytes.length);

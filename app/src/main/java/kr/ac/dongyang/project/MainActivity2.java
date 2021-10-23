@@ -157,7 +157,7 @@ public class MainActivity2 extends AppCompatActivity {
         SharedPreferences device = getSharedPreferences("bluetooth", 0);
         String address = device.getString("raspberry", "");
         if(address.equals("")){
-            Toast.makeText(getApplicationContext(),"설정에서 라즈베리파이를 지정해주세요", Toast.LENGTH_LONG).show();
+            Toast.makeText(getApplicationContext(),"설정에서 라즈베리파이를 지정해주세요", Toast.LENGTH_SHORT).show();
             Intent intent = new Intent(this, BluetoothActivity.class);
             startActivity(intent);
         }
