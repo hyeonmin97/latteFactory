@@ -46,8 +46,10 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import kr.ac.dongyang.project.LoadingDialog;
 import kr.ac.dongyang.project.bluetooth.BluetoothController;
 import kr.ac.dongyang.project.R;
+import kr.ac.dongyang.project.service.bluetoothService;
 import kr.ac.dongyang.project.streaming.MediaScanner;
 
 public class BlackBoxActivity extends AppCompatActivity {
@@ -95,6 +97,7 @@ public class BlackBoxActivity extends AppCompatActivity {
     private VideoView videoView;
     String fileName;
     File path;
+
     ConnectedThread thread;
     
     //bluetooth
@@ -109,7 +112,7 @@ public class BlackBoxActivity extends AppCompatActivity {
     int recvSize=0;
     int total = 0;
     ProgressDialog dialog;
-    Boolean socketConnect = true;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         setContentView(R.layout.activity_black_box);
@@ -138,13 +141,11 @@ public class BlackBoxActivity extends AppCompatActivity {
         if(address.equals("")){
             Toast.makeText(getApplicationContext(),"설정에서 라떼판다를 지정해주세요", Toast.LENGTH_LONG).show();
             finish();
+        }else{
+            //블루투스 소켓 연결
+            connectSocket(address);
         }
-        
-        //블루투스 소켓 연결
-        socketConnect = connectSocket(address);
-        Intent intent = new Intent("custom-event-name");
-        intent.putExtra("message", "This is my first message!");
-        LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
+
         super.onCreate(savedInstanceState);
     }
 
@@ -152,51 +153,69 @@ public class BlackBoxActivity extends AppCompatActivity {
      *라떼판다의 블루투스 소켓과 연결하는 메소드
      * @param address 블루투스 장치 mac 주소
      */
-    private boolean connectSocket(String address){
-        if (address.equals("")){
-            //Toast.makeText(getApplicationContext(),"블루투스 장치를 확인하세요", Toast.LENGTH_LONG).show();
-        }
-        else{
-            // Spawn a new thread to avoid blocking the GUI one
-
-            android.bluetooth.BluetoothDevice btDevice = mBTAdapter.getRemoteDevice(address);
-            try {
-                latteSocket = btcl.createLatteSocket(btDevice);
-            } catch (IOException e) {//exception 발생 시
-                handler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        Toast.makeText(getBaseContext(), "Socket creation failed", Toast.LENGTH_SHORT).show();
-                    }
-                });
-
-            }
-            // Establish the Bluetooth socket connection.
-            try {
-                latteSocket.connect();
-            } catch (IOException e) {//exception 발생 시
-                try {
-                    latteSocket.close();
-                    handler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            Toast.makeText(getBaseContext(), "라떼판다의 블루투스 연결을 확인하세요", Toast.LENGTH_SHORT).show();
-                            finish();
-                        }
-                    });
-                } catch (IOException e2) {
-                    //insert code to deal with this
-                    handler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            Toast.makeText(getBaseContext(), "Socket creation failed", Toast.LENGTH_SHORT).show();
-                        }
-                    });
+    private void connectSocket(String address) {
+        LoadingDialog loadingDialog = new LoadingDialog(BlackBoxActivity.this);
+        new Thread() {
+            @Override
+            public void run() {
+                if (address.equals("")){
+                    //Toast.makeText(getApplicationContext(),"블루투스 장치를 확인하세요", Toast.LENGTH_LONG).show();
                 }
-                return false;
+                else{
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            loadingDialog.setCancelable(false);
+                            loadingDialog.show();
+                        }
+                    });
+                    
+                    android.bluetooth.BluetoothDevice btDevice = mBTAdapter.getRemoteDevice(address);
+                    try {
+                        latteSocket = btcl.createLatteSocket(btDevice);
+                    } catch (IOException e) {//exception 발생 시
+                        handler.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                Toast.makeText(getBaseContext(), "Socket creation failed", Toast.LENGTH_SHORT).show();
+                            }
+                        });
+
+                    }
+                    try {
+                        latteSocket.connect();
+                        try{
+                            thread = new ConnectedThread(btcl.getLatteSocket());
+                            thread.start();
+                            thread.write(FILE_LIST.getBytes());//파일 리스트 보내주세용
+                        }catch (Exception e){
+                            e.printStackTrace();
+                        }
+                    } catch (IOException e) {//exception 발생 시
+                        try {
+                            handler.post(new Runnable() {
+                                @Override
+                                public void run() {
+                                    Toast.makeText(getBaseContext(), "라떼판다의 블루투스를 확인하세요", Toast.LENGTH_SHORT).show();
+                                }
+                            });
+                            btcl.closeLatteSocket();
+                        } catch (Exception e2) {
+                            //insert code to deal with this
+                            handler.post(new Runnable() {
+                                @Override
+                                public void run() {
+                                    Toast.makeText(getBaseContext(), "Socket creation failed", Toast.LENGTH_SHORT).show();
+                                }
+                            });
+                            e.printStackTrace();
+                        }
+                        finish();//연결 실패시 BlackBoxActivity 종료
+                    }
+                        loadingDialog.dismiss();
+                }
             }
-        }
-        return true;
+        }.start();
     }
 
     /**
@@ -224,17 +243,7 @@ public class BlackBoxActivity extends AppCompatActivity {
 
         Log.d(TAG, "onstart");
         //블루투스 스레드 시작
-        try{
-            if(thread == null && socketConnect == true){
-                thread = new ConnectedThread(btcl.getLatteSocket());
-                thread.start();
 
-                thread.write(FILE_LIST.getBytes());//파일 리스트 보내주세용
-
-            }
-        }catch (Exception e){
-            e.printStackTrace();
-        }
         super.onStart();
     }
 
@@ -290,10 +299,7 @@ public class BlackBoxActivity extends AppCompatActivity {
                 e.printStackTrace();
             } catch (NullPointerException e){
                 e.printStackTrace();
-
             }
-
-
         }
 
         /**
@@ -374,8 +380,6 @@ public class BlackBoxActivity extends AppCompatActivity {
                     if (available > 0) {//값이 있을때
                         data = new byte[available];
                         mInputStream.read(data);
-
-                        //if (!mIsWatchView) {//카메라 출력하는 클라일때
                         int dataLength = data.length;
                         if (dataLength == 4) {//ack나 이런거일때
                             String key = new String(data, "UTF-8").trim();
@@ -387,16 +391,12 @@ public class BlackBoxActivity extends AppCompatActivity {
                             } else if(key.equals(ACK_FILE_LIST)){
                                 write(LIST_START.getBytes());
                                 byteArrayOutputStream = new ByteArrayOutputStream();
-                            } else if(key.equals(BLBK_END)){
-                                write(ACK_DATA_RECEIVED.getBytes()); //Sending the data received ack
-                                onReceivedBlackBox(byteArrayOutputStream.toByteArray());
-                            }else if (key.equals(BLBK_END)) {//데이터 끝일때
+                            }else if (key.equals(BLBK_END)) {//데이터 끝일때(크기 작으면 여기로)
                                 final ByteArrayOutputStream finalByteArrayOutputStream = byteArrayOutputStream;
                                 write(ACK_DATA_RECEIVED.getBytes()); //Sending the data received ack
                                 onReceivedBlackBox(finalByteArrayOutputStream.toByteArray());
-                                dialog.cancel();
+                                dialog.dismiss();
                                 filesize=0;
-
                             }
                         } else {
                             byteArrayOutputStream.write(data);//실행될때마다 초기화 되는지 봐야함
@@ -405,7 +405,7 @@ public class BlackBoxActivity extends AppCompatActivity {
                             if(filesize>0){
 
                                 dialog.setProgress(recvSize);
-                                Log.d("sex", ""+recvSize);
+                                Log.d(TAG, ""+recvSize);
 
                             }
                             if (completeDataSize > 4) {//크기가 4보다 클때
@@ -413,17 +413,13 @@ public class BlackBoxActivity extends AppCompatActivity {
                                 byte[] keyData = Arrays.copyOfRange(completeData, completeDataSize - 4, completeDataSize);//응답문자 제외하고 새 배열 keyData에 저장(응답문자 후 ~ 끝)
                                 String key = new String(keyData, "UTF-8").trim();//양쪽 공백 제거
                                 Log.d("recvdata","recv");
-                                if (key.equals(BLBK_END)) {//데이터 끝일때
+                                if (key.equals(BLBK_END)) {//데이터 끝일때(크기 크면 여기)
                                     final ByteArrayOutputStream finalByteArrayOutputStream = byteArrayOutputStream;
                                     write(ACK_DATA_RECEIVED.getBytes()); //Sending the data received ack
-
-                                    dialog.dismiss();
                                     onReceivedBlackBox(finalByteArrayOutputStream.toByteArray());
-
+                                    dialog.dismiss();
                                     filesize=0;
-
                                 } else if (key.equals(FILE_SIZE)) {//파일 사이즈일때
-
                                     final ByteArrayOutputStream finalByteArrayOutputStream = byteArrayOutputStream;
                                     String temp = finalByteArrayOutputStream.toString();
                                     int length = Integer.parseInt(temp.substring(0,temp.length()-4));
@@ -440,46 +436,15 @@ public class BlackBoxActivity extends AppCompatActivity {
                                                  dialog.setMax(filesize);
                                                  dialog.setProgress(0);
                                                  dialog.setCancelable(false);//다이얼로그 안꺼지게
-
-                                                 //다이얼로그 취소되면 전송 취소되게 해야하는데...
                                                  dialog.setMessage("데이터 다운중..");
                                                  dialog.show();
-                                                 dialog.setOnCancelListener(new DialogInterface.OnCancelListener() {
-                                                     @Override
-                                                     public void onCancel(DialogInterface dialogInterface) {
-                                                         handler.post(new Runnable() {
-                                                             @Override
-                                                             public void run() {
-                                                                 Toast.makeText(BlackBoxActivity.this, "다운이 취소되었습니다.", Toast.LENGTH_SHORT).show();
-
-                                                                 write(ACK_DATA_RECEIVED.getBytes());
-                                                             }
-                                                         });
-                                                     }
-                                                 });
-                                                 dialog.setOnDismissListener(new DialogInterface.OnDismissListener() {
-                                                     @Override
-                                                     public void onDismiss(DialogInterface dialogInterface) {
-                                                         handler.post(new Runnable() {
-                                                             @Override
-                                                             public void run() {
-                                                                 Toast.makeText(BlackBoxActivity.this, "다운이 취소되었습니다.", Toast.LENGTH_SHORT).show();
-
-                                                                 write(ACK_DATA_RECEIVED.getBytes());
-                                                             }
-                                                         });
-                                                     }
-                                                 });
                                         }
                                     });
                                     total = 0;
                                 } else if (key.equals(LIST_END)) {//디렉터리, 파일 리스트 끝
-
                                     final ByteArrayOutputStream finalByteArrayOutputStream = byteArrayOutputStream;
                                     String temp = finalByteArrayOutputStream.toString();
                                     String str = temp.substring(0,temp.length()-4);//응답문자 뺌
-
-                                    Log.d(TAG, temp);
                                     str = str.replace("\'", "");
                                     String[] splitStr = str.split(", ");
 
@@ -489,21 +454,12 @@ public class BlackBoxActivity extends AppCompatActivity {
                                         Log.d(TAG, dkey);
                                         Log.d(TAG, String.valueOf(hashData.get(dkey)));
                                         createButton(dkey, hashData.get(dkey),baseLayout);
-
-
                                     }
                                     write(FLIE_LIST_END.getBytes());//파일리스트 전체작업 끝
-                                } else{
-
                                 }
-
-
                             }
                         }
-
                     }
-
-
                 } catch (IOException e) {
                     e.printStackTrace();
                     return;
@@ -516,8 +472,11 @@ public class BlackBoxActivity extends AppCompatActivity {
                 }
             }
             //인터럽트시(스레드 종료) 종료메시지 보냄
-            write(BLUETOOTH_END.getBytes());
-
+            try {
+                write(BLUETOOTH_END.getBytes());
+            }catch (Exception e){
+                e.printStackTrace();
+            }
         }
 
         public synchronized void write(byte[] data) {
@@ -597,7 +556,6 @@ public class BlackBoxActivity extends AppCompatActivity {
                 }
             });
 
-
             Button button = new Button(getApplicationContext());
             button.setText(dir);
             button.setTag(dir);
@@ -621,13 +579,7 @@ public class BlackBoxActivity extends AppCompatActivity {
                     baseLayout.addView(myLinearLayout);
                 }
             });
-
-            //return myLinearLayout;
-
-
         }
-
-
     }
     
     //id 지정하기 위한 메서드
@@ -636,7 +588,6 @@ public class BlackBoxActivity extends AppCompatActivity {
             return generateViewIdSdk17Under();
         } else {
             return View.generateViewId();
-
         }
     }
 
