@@ -29,6 +29,8 @@ import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
 
+import kr.ac.dongyang.project.LoadingDialog;
+import kr.ac.dongyang.project.blackbox.BlackBoxActivity;
 import kr.ac.dongyang.project.bluetooth.BluetoothController;
 import kr.ac.dongyang.project.MainActivity2;
 import kr.ac.dongyang.project.R;
@@ -93,11 +95,10 @@ public class VideoStreaming extends AppCompatActivity {
         if(address.equals("")){
             Toast.makeText(getApplicationContext(),"설정에서 라떼판다를 지정해주세요", Toast.LENGTH_LONG).show();
             finish();
+        } else {
+            //블루투스 소켓 연결
+            connectSocket(address);
         }
-        //블루투스 소켓 연결
-        socketConnect = connectSocket(address);
-
-
 
         btnmain.setOnClickListener((v) -> {
             //인텐트 선언 -> 현재 액티비티, 넘어갈 액티비티
@@ -146,52 +147,72 @@ public class VideoStreaming extends AppCompatActivity {
         super.onCreate(savedInstanceState);
     }
 
-    private boolean connectSocket(String address){
-        if (address.equals("")){
-            //Toast.makeText(getApplicationContext(),"블루투스 장치를 확인하세요", Toast.LENGTH_LONG).show();
-        }
-        else{
-            // Spawn a new thread to avoid blocking the GUI one
-
-            android.bluetooth.BluetoothDevice btDevice = mBTAdapter.getRemoteDevice(address);
-            try {
-                latteSocket = btcl.createLatteSocket(btDevice);
-            } catch (IOException e) {//exception 발생 시
-                handler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        Toast.makeText(getBaseContext(), "Socket creation failed", Toast.LENGTH_SHORT).show();
-                    }
-                });
-
-            }
-            // Establish the Bluetooth socket connection.
-            try {
-                latteSocket.connect();
-            } catch (IOException e) {//exception 발생 시
-                try {
-                    latteSocket.close();
-                    handler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            Toast.makeText(getBaseContext(), "라떼판다의 블루투스 연결을 확인하세요", Toast.LENGTH_SHORT).show();
-                            finish();
-                        }
-                    });
-                } catch (IOException e2) {
-                    //insert code to deal with this
-                    handler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            Toast.makeText(getBaseContext(), "Socket creation failed", Toast.LENGTH_SHORT).show();
-                        }
-                    });
+    private void connectSocket(String address) {
+        LoadingDialog loadingDialog = new LoadingDialog(VideoStreaming.this);
+        new Thread() {
+            @Override
+            public void run() {
+                if (address.equals("")){
+                    //Toast.makeText(getApplicationContext(),"블루투스 장치를 확인하세요", Toast.LENGTH_LONG).show();
                 }
-                return false;
+                else{
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            loadingDialog.setCancelable(false);
+                            loadingDialog.show();
+                        }
+                    });
+
+                    android.bluetooth.BluetoothDevice btDevice = mBTAdapter.getRemoteDevice(address);
+                    try {
+                        latteSocket = btcl.createLatteSocket(btDevice);
+                    } catch (IOException e) {//exception 발생 시
+                        handler.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                Toast.makeText(getBaseContext(), "Socket creation failed", Toast.LENGTH_SHORT).show();
+                            }
+                        });
+
+                    }
+                    try {
+                        latteSocket.connect();
+                        try{
+                            thread = new ConnectedThread(btcl.getLatteSocket());
+                            thread.start();
+                            thread.write(START_STREAMING.getBytes());
+                        }catch (Exception e){
+                            e.printStackTrace();
+                        }
+                    } catch (IOException e) {//exception 발생 시
+                        try {
+                            handler.post(new Runnable() {
+                                @Override
+                                public void run() {
+                                    Toast.makeText(getBaseContext(), "라떼판다의 블루투스를 확인하세요", Toast.LENGTH_SHORT).show();
+                                }
+                            });
+                            btcl.closeLatteSocket();
+                        } catch (Exception e2) {
+                            //insert code to deal with this
+                            handler.post(new Runnable() {
+                                @Override
+                                public void run() {
+                                    Toast.makeText(getBaseContext(), "Socket creation failed", Toast.LENGTH_SHORT).show();
+                                }
+                            });
+                            e.printStackTrace();
+                        }
+                        finish();//연결 실패시 BlackBoxActivity 종료
+                    }
+                    loadingDialog.dismiss();
+                }
             }
-        }
-        return true;
+        }.start();
     }
+
+
     private void viewSize(){
         Display display = getWindowManager().getDefaultDisplay();  // in Activity
         Point size = new Point();
@@ -203,16 +224,6 @@ public class VideoStreaming extends AppCompatActivity {
     protected void onStart() {
 
         Log.d(TAG, "onstart");
-        //블루투스 스레드 시작
-        try{
-            if(thread == null && socketConnect == true){
-                thread = new ConnectedThread(btcl.getLatteSocket());
-                thread.start();
-                thread.write(START_STREAMING.getBytes());
-            }
-        }catch (Exception e){
-            e.printStackTrace();
-        }
         super.onStart();
     }
 
