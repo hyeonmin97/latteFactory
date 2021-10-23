@@ -76,9 +76,8 @@ public class MainActivity2 extends AppCompatActivity {
 
 
         //낙상감지 서비스 시작
-        //startService(new Intent(MainActivity2.this, gyroService.class));
         startService(new Intent(MainActivity2.this, bluetoothService.class));
-        Log.d("sex","sex");
+
 
         //subActivity로 이동하는 버튼
         blbx = findViewById(R.id.blbx);
@@ -104,53 +103,15 @@ public class MainActivity2 extends AppCompatActivity {
         home_user_name.setText(setting.getString("id", "") + "님");
 
 
-
-
-//        //블루투스 mac주소
-//        SharedPreferences device =  getSharedPreferences("bluetooth", 0);
-//        String address = device.getString("raspberry", "");
-//        if(address.equals("")){
-//            Toast.makeText(getApplicationContext(),"설정에서 라즈베리파이를 지정해주세요", Toast.LENGTH_LONG).show();
-//            Intent intent = new Intent(this, BluetoothActivity.class);
-//            startActivity(intent);
-//        }
-
-
-
-//        FirebaseMessaging.getInstance().getToken()
-//                .addOnCompleteListener(new OnCompleteListener<String>() {
-//                    @Override
-//                    public void onComplete(@NonNull Task<String> task) {
-//                        if (!task.isSuccessful()) {
-//                            Log.w(TAG, "Fetching FCM registration token failed", task.getException());
-//                            return;
-//                        }
-//
-//                        // Get new FCM registration token
-//                        String token = task.getResult();
-//                        Log.d(TAG, token);
-//                        editor.putString("token",token);
-//                        editor.apply();
-//                        String id = setting.getString("id","");
-//                        UpdateToken.update(id, token);
-//                        //thread.write(token.getBytes());
-//                        //thread.write("edtk".getBytes());
-//                    }
-//                });
         blbx.setOnClickListener((v) -> {
             //인텐트 선언 -> 현재 액티비티, 넘어갈 액티비티
 
             Intent intent1 = new Intent(this, BlackBoxActivity.class);
             startActivity(intent1);
-            Intent splash = new Intent(this, SplashActivity.class);
-            startActivity(splash);
 
         });
         back.setOnClickListener((v) -> {
             //인텐트 선언 -> 현재 액티비티, 넘어갈 액티비티
-            Intent splash2 = new Intent(this, SplashActivity.class);
-            startActivity(splash2);
-
             Intent intent2 = new Intent(this, VideoStreaming.class);
             startActivity(intent2);
         });
@@ -196,7 +157,7 @@ public class MainActivity2 extends AppCompatActivity {
         SharedPreferences device = getSharedPreferences("bluetooth", 0);
         String address = device.getString("raspberry", "");
         if(address.equals("")){
-            Toast.makeText(getApplicationContext(),"설정에서 라즈베리파이를 지정해주세요 sex", Toast.LENGTH_LONG).show();
+            Toast.makeText(getApplicationContext(),"설정에서 라즈베리파이를 지정해주세요", Toast.LENGTH_LONG).show();
             Intent intent = new Intent(this, BluetoothActivity.class);
             startActivity(intent);
         }
@@ -215,8 +176,6 @@ public class MainActivity2 extends AppCompatActivity {
                 handler.post(new Runnable() {
                     @Override
                     public void run() {
-
-
                         l.show();
 
                     }
@@ -226,8 +185,6 @@ public class MainActivity2 extends AppCompatActivity {
                     //Toast.makeText(getApplicationContext(),"블루투스 장치를 확인하세요", Toast.LENGTH_LONG).show();
                 }
                 else{
-                    // Spawn a new thread to avoid blocking the GUI one
-
                     android.bluetooth.BluetoothDevice btDevice = mBTAdapter.getRemoteDevice(address);
                     try {
                         raspberrySocket = btcl.createRaspberrySocket(btDevice);
@@ -240,51 +197,28 @@ public class MainActivity2 extends AppCompatActivity {
                         });
 
                     }
-                    // Establish the Bluetooth socket connection.
                     try {
                         raspberrySocket.connect();
-                        //성공시 서비스에 값 전달
+                        //성공시 서비스에 값 전달 -> 스레드 생성
                         Intent intent = new Intent(getApplicationContext(), bluetoothService.class);
                         intent.putExtra("bluetooth", true);
                         startService(intent);
-
-                    } catch (IOException e) {//exception 발생 시
+                    } catch (IOException e) {//connect() 실패시 exception 발생
                         handler.post(new Runnable() {
                             @Override
                             public void run() {
                                 Toast.makeText(getBaseContext(), "연결 에러 - 라즈베리 파이의 블루투스를 확인해주세요", Toast.LENGTH_SHORT).show();
                             }
-
+                            
                         });
-
-//                        Intent bt = new Intent(getApplicationContext(), BluetoothActivity.class);
-//                        bt.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK |
-//                                Intent.FLAG_ACTIVITY_SINGLE_TOP |
-//                                Intent.FLAG_ACTIVITY_CLEAR_TOP);
-//                        startActivity(bt);
-//                        Log.d(TAG, "go BluetoothActivity");
-
+                        e.printStackTrace();
                         try {
                             raspberrySocket.close();
-//                    handler.post(new Runnable() {
-//                        @Override
-//                        public void run() {
-//                            Toast.makeText(getBaseContext(), "라즈베리파이의 블루투스 연결을 확인하세요", Toast.LENGTH_SHORT).show();
-//                        }
-//                    });
                         } catch (IOException e2) {
-                            //insert code to deal with this
-//                    handler.post(new Runnable() {
-//                        @Override
-//                        public void run() {
-//                            Toast.makeText(getBaseContext(), "Socket creation failed", Toast.LENGTH_SHORT).show();
-//                        }
-//                    });
-                        }finally {
-                            Log.d("sex","threadend");
+                            e2.printStackTrace();
                         }
                     }
-                    finally {
+                    finally {//소켓 연결 여부와 상관 없이 항상 실행
                         l.dismiss();
                     }
                 }
@@ -300,12 +234,6 @@ public class MainActivity2 extends AppCompatActivity {
 
     //로그아웃
     public void onClick(View view) {
-        //SharedPreferences setting;
-        //SharedPreferences.Editor editor;
-        //setting = getSharedPreferences("setting", 0);
-        //editor= setting.edit();
-        //editor.remove("id");
-        //editor.remove("password");
         Intent intentLogout = new Intent(this, MainActivity.class);
         intentLogout.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         startActivity(intentLogout);
