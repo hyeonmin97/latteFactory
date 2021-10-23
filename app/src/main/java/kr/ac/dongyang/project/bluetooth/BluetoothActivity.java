@@ -131,6 +131,7 @@ public class BluetoothActivity extends AppCompatActivity {
             }else if(device.equals("latte")){
                 finish();
             }
+        }
     };
     private void connectSocket(String address) {
         LoadingDialog loadingDialog = new LoadingDialog(BluetoothActivity.this);
